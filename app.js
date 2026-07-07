@@ -33,15 +33,40 @@ let mockHandRaiseTimeout = null;
 // Page initialization
 window.addEventListener('DOMContentLoaded', () => {
   initMockMessages();
-  // Check if session exists in localStorage
-  const savedUser = localStorage.getItem('sabha_user');
-  const savedToken = localStorage.getItem('sabha_token');
-  if (savedUser && savedToken) {
-    currentUser = JSON.parse(savedUser);
-    token = savedToken;
-    testBackendConnectionAndLogin();
-  }
+  
+  // BYPASS LOGIN SCREEN: Automatically log in as K. Kavitha (Leader) in Mock Mode!
+  isMockMode = true;
+  currentUser = {
+    id: 'u1',
+    name: 'K. Kavitha',
+    phone: '+919000000001',
+    role: 'leader',
+    avatarColor: '#F4C016',
+    title: 'Party President',
+    online: true
+  };
+  token = 'mock_token_' + Date.now();
+  
+  localStorage.setItem('sabha_user', JSON.stringify(currentUser));
+  localStorage.setItem('sabha_token', token);
+  
+  onLoginSuccess();
 });
+
+function closeActiveDetail() {
+  // Empty active chat or group so the panel gets .empty class and hides on mobile
+  activeChatUserId = null;
+  activeGroupId = null;
+  
+  document.getElementById('chat-detail-panel').classList.add('empty');
+  document.getElementById('chat-active-container').classList.add('hidden');
+  
+  document.getElementById('group-detail-panel').classList.add('empty');
+  document.getElementById('group-active-container').classList.add('hidden');
+  
+  renderChatsList();
+  renderGroupsList();
+}
 
 // ==========================================================================
 // AUTHENTICATION & LOGIN FLOW
