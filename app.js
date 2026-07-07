@@ -881,8 +881,9 @@ function joinConferenceRoom(roomId) {
   document.getElementById('host-hands-drawer').classList.add('hidden');
   document.getElementById('raised-hands-list').innerHTML = '';
   
-  // Setup microphone controls depending on roles
+  // Setup microphone and camera controls depending on roles
   const muteBtn = document.getElementById('speaker-mute-btn');
+  const cameraBtn = document.getElementById('speaker-camera-btn');
   const raiseBtn = document.getElementById('listener-raise-btn');
   
   const isSpeaker = room.speakers.some(s => s.id === currentUser.id);
@@ -890,9 +891,15 @@ function joinConferenceRoom(roomId) {
     muteBtn.classList.remove('hidden');
     muteBtn.className = 'control-btn active-speaking-control';
     muteBtn.innerHTML = '<i class="fa-solid fa-microphone"></i> Mute Mic';
+    if (cameraBtn) {
+      cameraBtn.classList.remove('hidden');
+      cameraBtn.className = 'control-btn active-speaking-control';
+      cameraBtn.innerHTML = '<i class="fa-solid fa-video"></i> Cam On';
+    }
     raiseBtn.classList.add('hidden');
   } else {
     muteBtn.classList.add('hidden');
+    if (cameraBtn) cameraBtn.classList.add('hidden');
     raiseBtn.classList.remove('hidden');
   }
   
@@ -908,6 +915,8 @@ function leaveConferenceRoom() {
   if (activeRoomId) {
     socket.emit('room:leave', { roomId: activeRoomId });
   }
+  
+  stopSabhaLocalVideo();
   
   activeRoomId = null;
   document.getElementById('sabha-active-room').classList.add('hidden');
@@ -936,17 +945,44 @@ function renderRoomSpeakers(speakers) {
       </div>
     ` : '';
     
-    card.innerHTML = `
-      <div class="speaker-avatar-wrap">
-        <div class="speaker-avatar" style="background-color: ${sp.avatarColor}; color: ${sp.role === 'leader' ? '#1A1500' : '#FFFFFF'}">${initials}</div>
-        ${muteIcon}
-      </div>
-      <span class="speaker-name">${sp.name}</span>
-      <span class="speaker-role">${sp.role === 'leader' ? 'Host (Leader)' : 'Speaker'}</span>
-      ${waveformHtml}
-    `;
+    if (sp.id === currentUser.id) {
+      card.innerHTML = `
+        <div class="speaker-video-wrap">
+          <video id="sabha-local-video" autoplay playsinline muted class="speaker-video-feed"></video>
+          <div class="speaker-avatar-wrap" id="sabha-local-fallback">
+            <div class="speaker-avatar" style="background-color: ${sp.avatarColor}; color: ${sp.role === 'leader' ? '#1A1500' : '#FFFFFF'}">${initials}</div>
+          </div>
+          ${muteIcon}
+        </div>
+        <span class="speaker-name">${sp.name}</span>
+        <span class="speaker-role">${sp.role === 'leader' ? 'Host (Leader)' : 'Speaker'}</span>
+        ${waveformHtml}
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="speaker-video-wrap">
+          <div class="speaker-avatar-wrap">
+            <div class="speaker-avatar" style="background-color: ${sp.avatarColor}; color: ${sp.role === 'leader' ? '#1A1500' : '#FFFFFF'}">${initials}</div>
+          </div>
+          ${muteIcon}
+          <div class="simulated-video-tag">Camera Active</div>
+        </div>
+        <span class="speaker-name">${sp.name}</span>
+        <span class="speaker-role">${sp.role === 'leader' ? 'Host' : 'Speaker'}</span>
+        ${waveformHtml}
+      `;
+    }
+    
     container.appendChild(card);
   });
+
+  // Automatically request camera stream if current user is speaker on stage!
+  const hasMySpeaker = speakers.some(s => s.id === currentUser.id);
+  if (hasMySpeaker) {
+    startSabhaLocalVideo();
+  } else {
+    stopSabhaLocalVideo();
+  }
 }
 
 function renderRoomAudience(speakers) {
@@ -1089,25 +1125,8 @@ function promoteToSpeaker(userId) {
 
 // Emote floating visual animation
 function spawnFloatingEmoji(emoji) {
-  const container = document.getElementById('floating-emojis-container');
-  if (!container) return;
-  
-  const div = document.createElement('div');
-  div.className = 'floating-emoji';
-  div.innerText = emoji;
-  
-  // Set random drifts using CSS custom properties for realistic physics
-  div.style.setProperty('--drift-1', `${Math.floor(Math.random() * 80) - 40}px`);
-  div.style.setProperty('--drift-2', `${Math.floor(Math.random() * 120) - 60}px`);
-  div.style.setProperty('--drift-3', `${Math.floor(Math.random() * 160) - 80}px`);
-  div.style.left = `${Math.floor(Math.random() * 70) + 15}%`;
-  
-  container.appendChild(div);
-  
-  // Remove element after transition finishes
-  setTimeout(() => {
-    div.remove();
-  }, 3000);
+  // Disabled per user request - floating emojis should not appear
+  return;
 }
 
 // ==========================================================================
@@ -1965,5 +1984,86 @@ function quickCallback(name, avatarColor, type) {
       document.getElementById('outgoing-call-screen').classList.remove('hidden');
       socket.emit('call:invite', { to: 'mock_callback' });
     }
+  }
+}
+
+let sabhaLocalStream = null;
+let isSabhaCameraOn = true;
+
+async function startSabhaLocalVideo() {
+  const videoEl = document.getElementById('sabha-local-video');
+  const fallbackEl = document.getElementById('sabha-local-fallback');
+  if (!videoEl) return;
+  
+  if (sabhaLocalStream) {
+    videoEl.srcObject = sabhaLocalStream;
+    if (isSabhaCameraOn) {
+      videoEl.classList.remove('hidden');
+      if (fallbackEl) fallbackEl.classList.add('hidden');
+    } else {
+      videoEl.classList.add('hidden');
+      if (fallbackEl) fallbackEl.classList.remove('hidden');
+    }
+    return;
+  }
+  
+  try {
+    sabhaLocalStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    videoEl.srcObject = sabhaLocalStream;
+    if (isSabhaCameraOn) {
+      videoEl.classList.remove('hidden');
+      if (fallbackEl) fallbackEl.classList.add('hidden');
+    } else {
+      videoEl.classList.add('hidden');
+      if (fallbackEl) fallbackEl.classList.remove('hidden');
+    }
+  } catch (err) {
+    console.warn("Could not start camera for Sabha stage:", err);
+    videoEl.classList.add('hidden');
+    if (fallbackEl) fallbackEl.classList.remove('hidden');
+  }
+}
+
+function stopSabhaLocalVideo() {
+  if (sabhaLocalStream) {
+    sabhaLocalStream.getTracks().forEach(track => track.stop());
+    sabhaLocalStream = null;
+  }
+  const videoEl = document.getElementById('sabha-local-video');
+  if (videoEl) videoEl.srcObject = null;
+}
+
+function toggleSpeakerCamera() {
+  isSabhaCameraOn = !isSabhaCameraOn;
+  const cameraBtn = document.getElementById('speaker-camera-btn');
+  const videoEl = document.getElementById('sabha-local-video');
+  const fallbackEl = document.getElementById('sabha-local-fallback');
+  
+  if (isSabhaCameraOn) {
+    if (cameraBtn) {
+      cameraBtn.className = 'control-btn active-speaking-control';
+      cameraBtn.style.backgroundColor = '';
+      cameraBtn.style.color = '';
+      cameraBtn.innerHTML = '<i class="fa-solid fa-video"></i> Cam On';
+    }
+    if (sabhaLocalStream) {
+      const videoTrack = sabhaLocalStream.getVideoTracks()[0];
+      if (videoTrack) videoTrack.enabled = true;
+    }
+    if (videoEl) videoEl.classList.remove('hidden');
+    if (fallbackEl) fallbackEl.classList.add('hidden');
+  } else {
+    if (cameraBtn) {
+      cameraBtn.className = 'control-btn';
+      cameraBtn.style.backgroundColor = 'var(--color-input-bg)';
+      cameraBtn.style.color = 'var(--color-text-dark)';
+      cameraBtn.innerHTML = '<i class="fa-solid fa-video-slash"></i> Cam Off';
+    }
+    if (sabhaLocalStream) {
+      const videoTrack = sabhaLocalStream.getVideoTracks()[0];
+      if (videoTrack) videoTrack.enabled = false;
+    }
+    if (videoEl) videoEl.classList.add('hidden');
+    if (fallbackEl) fallbackEl.classList.remove('hidden');
   }
 }

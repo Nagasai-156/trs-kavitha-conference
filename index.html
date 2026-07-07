@@ -277,6 +277,11 @@
                     <i class="fa-solid fa-microphone"></i> Mute
                   </button>
 
+                  <!-- Camera button (only visible if speaker) -->
+                  <button id="speaker-camera-btn" class="control-btn camera-btn hidden" onclick="toggleSpeakerCamera()">
+                    <i class="fa-solid fa-video"></i> Camera
+                  </button>
+
                   <!-- Raise hand button (only visible if listener) -->
                   <button id="listener-raise-btn" class="control-btn raise-hand-action" onclick="raiseHandToSpeak()">
                     <i class="fa-solid fa-hand"></i> Raise Hand
