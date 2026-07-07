@@ -23,15 +23,23 @@ let activeCall = null; // { peerId, peerName, role: 'caller'|'callee', callId, t
 let callMuted = false;
 let callSpeaker = true;
 
+// Mock mode state
+let isMockMode = false;
+let mockDmMessages = {};
+let mockGroupMessages = {};
+let mockRoomInterval = null;
+let mockHandRaiseTimeout = null;
+
 // Page initialization
 window.addEventListener('DOMContentLoaded', () => {
+  initMockMessages();
   // Check if session exists in localStorage
   const savedUser = localStorage.getItem('sabha_user');
   const savedToken = localStorage.getItem('sabha_token');
   if (savedUser && savedToken) {
     currentUser = JSON.parse(savedUser);
     token = savedToken;
-    onLoginSuccess();
+    testBackendConnectionAndLogin();
   }
 });
 
@@ -70,10 +78,34 @@ async function performLogin(bodyData) {
     localStorage.setItem('sabha_user', JSON.stringify(currentUser));
     localStorage.setItem('sabha_token', token);
     
+    isMockMode = false;
     onLoginSuccess();
   } catch (error) {
-    alert('Failed to connect to the backend server. Please make sure the backend is running at ' + BACKEND_URL);
-    console.error('Login error:', error);
+    console.warn('Failed to connect to the backend server. Switching to Standalone Demo (Mock Mode).', error);
+    
+    isMockMode = true;
+    const seededUsers = getSeededUsers();
+    const matchedUser = seededUsers.find(u => u.phone === bodyData.phone || u.name.toLowerCase() === bodyData.name.toLowerCase());
+    
+    if (matchedUser) {
+      currentUser = matchedUser;
+    } else {
+      currentUser = {
+        id: 'u_' + Date.now(),
+        name: bodyData.name,
+        phone: bodyData.phone,
+        role: bodyData.role || 'member',
+        avatarColor: bodyData.role === 'leader' ? '#F4C016' : (bodyData.role === 'karyakarta' ? '#005020' : '#203080'),
+        title: bodyData.role === 'leader' ? 'Party President' : (bodyData.role === 'karyakarta' ? 'Coordinator' : 'Party Member'),
+        online: true
+      };
+    }
+    
+    token = 'mock_token_' + Date.now();
+    localStorage.setItem('sabha_user', JSON.stringify(currentUser));
+    localStorage.setItem('sabha_token', token);
+    
+    onLoginSuccess();
   }
 }
 
@@ -131,6 +163,10 @@ function logout() {
 // ==========================================================================
 
 async function fetchSeedData() {
+  if (isMockMode) {
+    loadLocalMockData();
+    return;
+  }
   try {
     const res = await fetch(`${BACKEND_URL}/api/seed`);
     const data = await res.json();
@@ -155,7 +191,9 @@ async function fetchSeedData() {
     document.getElementById('my-profile-phone').innerText = currentUser.phone;
     document.getElementById('my-profile-title').innerText = currentUser.title || 'Party Member';
   } catch (error) {
-    console.error('Error fetching seed data:', error);
+    console.error('Error fetching seed data, falling back to mock mode:', error);
+    isMockMode = true;
+    loadLocalMockData();
   }
 }
 
@@ -164,6 +202,10 @@ async function fetchSeedData() {
 // ==========================================================================
 
 function initSocketConnection() {
+  if (isMockMode) {
+    initMockSocketConnection();
+    return;
+  }
   socket = io(BACKEND_URL, {
     auth: { token: token }
   });
@@ -390,8 +432,16 @@ async function selectActiveChat(userId) {
   document.getElementById('active-chat-name').innerText = user.name;
   document.getElementById('active-chat-status').innerText = user.online ? 'Online' : 'Offline';
   
-  // Fetch message history via REST
+  // Fetch message history
   document.getElementById('chat-messages-box').innerHTML = '<div class="system-message">Loading message history...</div>';
+  
+  if (isMockMode) {
+    if (!mockDmMessages[userId]) {
+      mockDmMessages[userId] = [];
+    }
+    renderChatMessages(mockDmMessages[userId]);
+    return;
+  }
   
   try {
     const response = await fetch(`${BACKEND_URL}/api/dm/${userId}?me=${currentUser.id}`);
@@ -458,17 +508,54 @@ function sendDirectMessage() {
   const bubble = document.createElement('div');
   bubble.className = 'message-bubble outgoing';
   bubble.setAttribute('data-temp-id', tempId);
-  bubble.style.opacity = '0.6'; // Dimmed for optimistic sending state
   
-  bubble.innerHTML = `
-    <span class="message-text">${escapeHTML(text)}</span>
-    <span class="message-meta">${formatTime(Date.now())} <i class="fa-solid fa-clock"></i></span>
-  `;
+  if (isMockMode) {
+    bubble.style.opacity = '1';
+    bubble.innerHTML = `
+      <span class="message-text">${escapeHTML(text)}</span>
+      <span class="message-meta">${formatTime(Date.now())}</span>
+    `;
+  } else {
+    bubble.style.opacity = '0.6'; // Dimmed for optimistic sending state
+    bubble.innerHTML = `
+      <span class="message-text">${escapeHTML(text)}</span>
+      <span class="message-meta">${formatTime(Date.now())} <i class="fa-solid fa-clock"></i></span>
+    `;
+  }
+  
   box.appendChild(bubble);
   scrollToBottom(box);
   
-  // Emit dm:send Socket event
-  socket.emit('dm:send', { to: activeChatUserId, text, tempId });
+  if (isMockMode) {
+    const msgObj = { from: currentUser.id, fromName: currentUser.name, text, ts: Date.now() };
+    if (!mockDmMessages[activeChatUserId]) mockDmMessages[activeChatUserId] = [];
+    mockDmMessages[activeChatUserId].push(msgObj);
+    bubble.removeAttribute('data-temp-id');
+
+    // Simulate response after 1.5 seconds
+    const replyUserId = activeChatUserId;
+    setTimeout(() => {
+      if (activeChatUserId === replyUserId) {
+        const replyText = getMockReply(replyUserId, text);
+        const replyObj = { from: replyUserId, fromName: usersMap.get(replyUserId).name, text: replyText, ts: Date.now() };
+        mockDmMessages[replyUserId].push(replyObj);
+        
+        if (activeTab === 'chats' && activeChatUserId === replyUserId) {
+          const replyBubble = document.createElement('div');
+          replyBubble.className = 'message-bubble incoming';
+          replyBubble.innerHTML = `
+            <span class="message-text">${escapeHTML(replyText)}</span>
+            <span class="message-meta">${formatTime(replyObj.ts)}</span>
+          `;
+          box.appendChild(replyBubble);
+          scrollToBottom(box);
+        }
+      }
+    }, 1500);
+  } else {
+    // Emit dm:send Socket event
+    socket.emit('dm:send', { to: activeChatUserId, text, tempId });
+  }
 }
 
 function handleIncomingDirectMessage(message) {
@@ -573,6 +660,14 @@ async function selectActiveGroup(groupId) {
     lockedBanner.classList.add('hidden');
   }
   
+  if (isMockMode) {
+    if (!mockGroupMessages[groupId]) {
+      mockGroupMessages[groupId] = [];
+    }
+    renderGroupMessages(mockGroupMessages[groupId]);
+    return;
+  }
+  
   // Join the group room in Socket.IO
   socket.emit('group:join', { groupId });
   
@@ -638,16 +733,32 @@ function sendGroupMessage() {
   const bubble = document.createElement('div');
   bubble.className = 'message-bubble outgoing';
   bubble.setAttribute('data-temp-id', tempId);
-  bubble.style.opacity = '0.6';
   
-  bubble.innerHTML = `
-    <span class="message-text">${escapeHTML(text)}</span>
-    <span class="message-meta">${formatTime(Date.now())} <i class="fa-solid fa-clock"></i></span>
-  `;
+  if (isMockMode) {
+    bubble.style.opacity = '1';
+    bubble.innerHTML = `
+      <span class="message-text">${escapeHTML(text)}</span>
+      <span class="message-meta">${formatTime(Date.now())}</span>
+    `;
+  } else {
+    bubble.style.opacity = '0.6';
+    bubble.innerHTML = `
+      <span class="message-text">${escapeHTML(text)}</span>
+      <span class="message-meta">${formatTime(Date.now())} <i class="fa-solid fa-clock"></i></span>
+    `;
+  }
+  
   box.appendChild(bubble);
   scrollToBottom(box);
   
-  socket.emit('group:send', { groupId: activeGroupId, text, tempId });
+  if (isMockMode) {
+    const msgObj = { from: currentUser.id, fromName: currentUser.name, text, ts: Date.now() };
+    if (!mockGroupMessages[activeGroupId]) mockGroupMessages[activeGroupId] = [];
+    mockGroupMessages[activeGroupId].push(msgObj);
+    bubble.removeAttribute('data-temp-id');
+  } else {
+    socket.emit('group:send', { groupId: activeGroupId, text, tempId });
+  }
 }
 
 function handleIncomingGroupMessage(message) {
@@ -1112,4 +1223,310 @@ function escapeHTML(str) {
       '"': '&quot;'
     }[tag] || tag)
   );
+}
+
+// ==========================================================================
+// STANDALONE DEMO (MOCK SYSTEM) IMPLEMENTATION
+// ==========================================================================
+
+async function testBackendConnectionAndLogin() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/seed`);
+    if (res.ok) {
+      isMockMode = false;
+      onLoginSuccess();
+    } else {
+      throw new Error();
+    }
+  } catch (err) {
+    console.warn("Backend server not running. Enabling Standalone Mock Mode.");
+    isMockMode = true;
+    onLoginSuccess();
+  }
+}
+
+function getSeededUsers() {
+  return [
+    { id: 'u1', name: 'K. Kavitha',        phone: '+919000000001', role: 'leader',     avatarColor: '#F4C016', title: 'Party President', online: true },
+    { id: 'u2', name: 'Harish Reddy',      phone: '+919000000002', role: 'karyakarta', avatarColor: '#005020', title: 'District Coordinator — Warangal', online: true },
+    { id: 'u3', name: 'Padma Devi Rao',    phone: '+919000000003', role: 'karyakarta', avatarColor: '#203080', title: 'Women\'s Wing Convenor', online: true },
+    { id: 'u4', name: 'Srinivas Goud',     phone: '+919000000004', role: 'karyakarta', avatarColor: '#F4C016', title: 'District Coordinator — Nizamabad', online: true },
+    { id: 'u5', name: 'Manoj Kumar',       phone: '+919000000005', role: 'karyakarta', avatarColor: '#005020', title: 'Youth Wing Coordinator', online: true },
+    { id: 'u6', name: 'Anjali Sharma',     phone: '+919000000006', role: 'member',     avatarColor: '#203080', title: 'Booth Volunteer', online: true },
+    { id: 'u7', name: 'Ravi Teja',         phone: '+919000000007', role: 'member',     avatarColor: '#F4C016', title: 'Party Member', online: true },
+    { id: 'u8', name: 'Lakshmi Prasanna',  phone: '+919000000008', role: 'member',     avatarColor: '#005020', title: 'Party Member', online: true },
+    { id: 'u9', name: 'Venkatesh Naidu',   phone: '+919000000009', role: 'member',     avatarColor: '#203080', title: 'Party Member', online: false },
+    { id: 'u10', name: 'Sridevi Yadav',     phone: '+919000000010', role: 'member',     avatarColor: '#F4C016', title: 'Mahila Volunteer', online: true },
+    { id: 'u11', name: 'Praveen Chary',     phone: '+919000000011', role: 'member',     avatarColor: '#005020', title: 'Youth Volunteer', online: true },
+    { id: 'u12', name: 'Deepthi Reddy',     phone: '+919000000012', role: 'member',     avatarColor: '#203080', title: 'Party Member', online: true },
+    { id: 'u13', name: 'Kishore Rao',       phone: '+919000000013', role: 'member',     avatarColor: '#F4C016', title: 'Booth Volunteer', online: true },
+    { id: 'u14', name: 'Swathi Naidu',      phone: '+919000000014', role: 'member',     avatarColor: '#005020', title: 'Party Member', online: false },
+  ];
+}
+
+function getSeededGroups() {
+  return [
+    { id: 'g1', name: 'State Committee', description: 'Core state-level committee coordination.', avatarColor: '#F4C016', isBroadcast: false, members: ['u1', 'u2', 'u3', 'u4', 'u5'], memberCount: 25 },
+    { id: 'g2', name: 'District Coordinators', description: 'All district coordinators — planning & reports.', avatarColor: '#005020', isBroadcast: false, members: ['u1', 'u2', 'u4', 'u5', 'u13'], memberCount: 33 },
+    { id: 'g3', name: 'Youth Wing', description: 'Youth cadre mobilization and campaigns.', avatarColor: '#203080', isBroadcast: false, members: ['u1', 'u5', 'u7', 'u11', 'u12', 'u14'], memberCount: 1240 },
+    { id: 'g4', name: 'Women\'s Wing (Mahila)', description: 'Mahila cadre — welfare drives and outreach.', avatarColor: '#F4C016', isBroadcast: false, members: ['u1', 'u3', 'u8', 'u10', 'u14'], memberCount: 980 },
+    { id: 'g5', name: 'Booth Volunteers', description: 'Ground-level booth management team.', avatarColor: '#005020', isBroadcast: false, members: ['u2', 'u6', 'u7', 'u9', 'u13'], memberCount: 4600 },
+    { id: 'g6', name: 'Official Announcements 📢', description: 'Official party broadcasts. Only the leadership can post here.', avatarColor: '#203080', isBroadcast: true, members: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12', 'u13', 'u14'], memberCount: 48200 }
+  ];
+}
+
+function getSeededRooms() {
+  return [
+    { id: 'r1', title: 'Public Meeting — Warangal 🔴', topic: 'Live public address to the party cadre and citizens.', hostId: 'u1', hostName: 'K. Kavitha', live: true, listeners: 3120, speakers: [
+      { id: 'u1', name: 'K. Kavitha', role: 'leader', muted: false, speaking: true, avatarColor: '#F4C016' },
+      { id: 'u2', name: 'Harish Reddy', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
+    ], _target: 11420 },
+    { id: 'r2', title: 'Party Cadre Briefing', topic: 'Strategy briefing for coordinators ahead of the campaign.', hostId: 'u2', hostName: 'Harish Reddy', live: true, listeners: 1840, speakers: [
+      { id: 'u2', name: 'Harish Reddy', role: 'karyakarta', muted: false, speaking: true, avatarColor: '#005020' },
+      { id: 'u4', name: 'Srinivas Goud', role: 'karyakarta', muted: true, speaking: false, avatarColor: '#F4C016' },
+      { id: 'u5', name: 'Manoj Kumar', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
+    ], _target: 10250 },
+    { id: 'r3', title: 'Policy Discussion: Farmers', topic: 'Roundtable on farmer welfare and irrigation policy.', hostId: 'u4', hostName: 'Srinivas Goud', live: false, listeners: 0, speakers: [
+      { id: 'u4', name: 'Srinivas Goud', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#F4C016' }
+    ], _target: 0 },
+    { id: 'r4', title: 'Youth Townhall', topic: 'Open townhall with the youth wing.', hostId: 'u5', hostName: 'Manoj Kumar', live: false, listeners: 0, speakers: [
+      { id: 'u5', name: 'Manoj Kumar', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
+    ], _target: 0 }
+  ];
+}
+
+function loadLocalMockData() {
+  usersMap.clear();
+  groupsMap.clear();
+  roomsMap.clear();
+
+  const seededUsers = getSeededUsers();
+  const seededGroups = getSeededGroups();
+  const seededRooms = getSeededRooms();
+
+  seededUsers.forEach(u => usersMap.set(u.id, u));
+  seededGroups.forEach(g => groupsMap.set(g.id, g));
+  seededRooms.forEach(r => roomsMap.set(r.id, r));
+
+  renderChatsList();
+  renderGroupsList();
+  renderRoomsList();
+
+  // Fill in Profile view info
+  document.getElementById('my-profile-name').innerText = currentUser.name;
+  document.getElementById('my-profile-avatar').innerText = getInitials(currentUser.name);
+  document.getElementById('my-profile-avatar').style.backgroundColor = currentUser.avatarColor;
+  document.getElementById('my-profile-role').innerText = currentUser.role;
+  document.getElementById('my-profile-phone').innerText = currentUser.phone;
+  document.getElementById('my-profile-title').innerText = currentUser.title || 'Party Member';
+}
+
+function initMockMessages() {
+  mockDmMessages = {
+    'u2': [
+      { from: 'u2', fromName: 'Harish Reddy', text: 'Jai Telangana! The Warangal public meeting plans are finalized.', ts: Date.now() - 3600000 * 2 },
+      { from: 'u1', fromName: 'K. Kavitha', text: 'Excellent. Let\'s make sure the audio stage is ready.', ts: Date.now() - 3600000 }
+    ],
+    'u3': [
+      { from: 'u3', fromName: 'Padma Devi Rao', text: 'Mahila wing is conducting a welfare drive tomorrow.', ts: Date.now() - 3600000 * 5 },
+      { from: 'u1', fromName: 'K. Kavitha', text: 'Good work, keep it up.', ts: Date.now() - 3600000 * 4 }
+    ],
+    'u7': [
+      { from: 'u7', fromName: 'Ravi Teja', text: 'Namaste Kavitha Garu, I am ready to handle booth management in Nizamabad.', ts: Date.now() - 3600000 }
+    ]
+  };
+
+  mockGroupMessages = {
+    'g6': [
+      { from: 'u1', fromName: 'K. Kavitha', text: 'Welcome to the official Sabha broadcast channel! Keep checking here for official party updates.', ts: Date.now() - 3600000 * 12 },
+      { from: 'u1', fromName: 'K. Kavitha', text: 'All booth volunteers are requested to mobilize for the Warangal public meeting this weekend. Let\'s make it a grand success! 🚩', ts: Date.now() - 3600000 * 3 }
+    ],
+    'g1': [
+      { from: 'u2', fromName: 'Harish Reddy', text: 'We need to review the manifest draft by this Friday.', ts: Date.now() - 3600000 * 4 },
+      { from: 'u4', fromName: 'Srinivas Goud', text: 'I agree. Let\'s schedule a virtual Sabha tomorrow at 5 PM.', ts: Date.now() - 3600000 * 3 }
+    ]
+  };
+}
+
+function getMockReply(userId, text) {
+  const user = usersMap.get(userId);
+  const lowerText = text.toLowerCase();
+  
+  if (lowerText.includes('hello') || lowerText.includes('hi') || lowerText.includes('namaste')) {
+    return `Namaste! How are you doing? How is the campaign progress?`;
+  }
+  if (lowerText.includes('meeting') || lowerText.includes('sabha') || lowerText.includes('rally')) {
+    return `Yes, the arrangements are looking very strong. The public support is massive.`;
+  }
+  if (lowerText.includes('work') || lowerText.includes('done') || lowerText.includes('completed')) {
+    return `Excellent effort! Let's keep this momentum going. Jai Telangana! 🚩`;
+  }
+  return `Thank you for the update. Let's work together to make our voice stronger!`;
+}
+
+function initMockSocketConnection() {
+  mockSocketListeners = {};
+  socket = {
+    id: 'mock_socket_' + Math.random().toString(36).substr(2, 9),
+    emit: (event, data) => {
+      console.log(`[mock-socket] emit: ${event}`, data);
+      handleMockSocketEmit(event, data);
+    },
+    on: (event, callback) => {
+      console.log(`[mock-socket] register listener: ${event}`);
+      if (!mockSocketListeners[event]) {
+        mockSocketListeners[event] = [];
+      }
+      mockSocketListeners[event].push(callback);
+    },
+    disconnect: () => {
+      console.log('[mock-socket] disconnected');
+      if (mockRoomInterval) clearInterval(mockRoomInterval);
+      if (mockHandRaiseTimeout) clearTimeout(mockHandRaiseTimeout);
+    }
+  };
+  setTimeout(() => {
+    triggerMockSocketEvent('connect');
+  }, 100);
+}
+
+let mockSocketListeners = {};
+function triggerMockSocketEvent(event, data) {
+  if (mockSocketListeners[event]) {
+    mockSocketListeners[event].forEach(cb => cb(data));
+  }
+}
+
+function handleMockSocketEmit(event, data) {
+  if (event === 'room:join') {
+    const roomId = data.roomId;
+    const room = roomsMap.get(roomId);
+    if (!room) return;
+
+    if (mockRoomInterval) clearInterval(mockRoomInterval);
+    if (mockHandRaiseTimeout) clearTimeout(mockHandRaiseTimeout);
+
+    mockRoomInterval = setInterval(() => {
+      if (activeRoomId !== roomId) {
+        clearInterval(mockRoomInterval);
+        return;
+      }
+      
+      // Grow listeners towards target
+      if (room.listeners < room._target) {
+        const step = Math.floor(Math.random() * 45) + 15;
+        room.listeners = Math.min(room.listeners + step, room._target);
+        document.getElementById('room-listener-count').innerText = room.listeners.toLocaleString();
+      }
+
+      // Random user reaction emojis
+      if (Math.random() < 0.6) {
+        const emojis = ['👏', '❤️', '🚩', '🙌', '🔥'];
+        const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+        spawnFloatingEmoji(randomEmoji);
+      }
+
+      // Random speaking status animation
+      if (Math.random() < 0.25 && room.speakers.length > 0) {
+        const updatedSpeakers = room.speakers.map(s => {
+          return {
+            ...s,
+            speaking: s.muted ? false : Math.random() < 0.4
+          };
+        });
+        renderRoomSpeakers(updatedSpeakers);
+      }
+    }, 1000);
+
+    // If I am the host (KK), simulate a handraise request from another user after 5s
+    if (room.hostId === currentUser.id) {
+      mockHandRaiseTimeout = setTimeout(() => {
+        if (activeRoomId === roomId) {
+          const eligible = getSeededUsers().find(u => u.id !== currentUser.id && !room.speakers.some(s => s.id === u.id));
+          if (eligible) {
+            showHandRaiseNotification(eligible.id, eligible.name);
+          }
+        }
+      }, 5000);
+    }
+  }
+  else if (event === 'room:leave') {
+    if (mockRoomInterval) clearInterval(mockRoomInterval);
+    if (mockHandRaiseTimeout) clearTimeout(mockHandRaiseTimeout);
+  }
+  else if (event === 'room:raiseHand') {
+    const roomId = data.roomId;
+    const room = roomsMap.get(roomId);
+    if (!room) return;
+
+    // Simulate host approval after 4 seconds
+    setTimeout(() => {
+      if (activeRoomId === roomId) {
+        const isAlreadySpeaker = room.speakers.some(s => s.id === currentUser.id);
+        if (!isAlreadySpeaker) {
+          const mySpeakerState = {
+            id: currentUser.id,
+            name: currentUser.name,
+            role: currentUser.role,
+            muted: false,
+            speaking: false,
+            avatarColor: currentUser.avatarColor
+          };
+          room.speakers.push(mySpeakerState);
+          renderRoomSpeakers(room.speakers);
+          updateUserSpeakerControls(room.speakers);
+          
+          alert("Host promoted you to speaker. Your mic is now active.");
+          const muteBtn = document.getElementById('speaker-mute-btn');
+          muteBtn.classList.remove('hidden');
+          muteBtn.className = 'control-btn active-speaking-control';
+          muteBtn.innerHTML = '<i class="fa-solid fa-microphone"></i> Mute Mic';
+          
+          const raiseBtn = document.getElementById('listener-raise-btn');
+          raiseBtn.classList.add('hidden');
+        }
+      }
+    }, 4000);
+  }
+  else if (event === 'room:inviteToSpeak') {
+    const roomId = data.roomId;
+    const userId = data.userId;
+    const room = roomsMap.get(roomId);
+    if (room && userId) {
+      const user = usersMap.get(userId);
+      if (user && !room.speakers.some(s => s.id === userId)) {
+        room.speakers.push({
+          id: user.id,
+          name: user.name,
+          role: user.role,
+          muted: false,
+          speaking: false,
+          avatarColor: user.avatarColor
+        });
+        renderRoomSpeakers(room.speakers);
+      }
+    }
+  }
+  else if (event === 'room:muteToggle') {
+    const roomId = data.roomId;
+    const muted = data.muted;
+    const room = roomsMap.get(roomId);
+    if (room) {
+      const speakerState = room.speakers.find(s => s.id === currentUser.id);
+      if (speakerState) {
+        speakerState.muted = muted;
+        speakerState.speaking = false;
+        renderRoomSpeakers(room.speakers);
+        updateUserSpeakerControls(room.speakers);
+      }
+    }
+  }
+  else if (event === 'call:invite') {
+    const peerId = data.to;
+    setTimeout(() => {
+      if (activeCall && activeCall.peerId === peerId && activeCall.role === 'caller') {
+        handleCallAcceptedByPeer('mock_call_id');
+      }
+    }, 2000);
+  }
 }
