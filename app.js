@@ -385,6 +385,8 @@ function switchTab(tabName) {
     renderGroupsList();
   } else if (tabName === 'conference') {
     renderRoomsList();
+  } else if (tabName === 'calls') {
+    renderCallLogs();
   }
 }
 
@@ -1528,6 +1530,7 @@ function loadLocalMockData() {
   renderChatsList();
   renderGroupsList();
   renderRoomsList();
+  renderCallLogs();
 
   // Fill in Profile view info
   document.getElementById('my-profile-name').innerText = currentUser.name;
@@ -1824,5 +1827,143 @@ function handleMockSocketEmit(event, data) {
         handleCallAcceptedByPeer('mock_call_id');
       }
     }, 2000);
+  }
+}
+
+// ==========================================================================
+// CALL HISTORY LOGS MOCK SYSTEM
+// ==========================================================================
+
+let mockCallLogs = [
+  { id: 'c1', name: 'Rakesh Kumar', avatarColor: '#005020', type: 'outgoing', callType: 'voice', duration: '4m 12s', ts: Date.now() - 3600000 * 1.5 },
+  { id: 'c2', name: 'Padma Devi Rao', avatarColor: '#203080', type: 'incoming', callType: 'voice', duration: '12m 45s', ts: Date.now() - 3600000 * 4 },
+  { id: 'c3', name: 'Srinivas Goud', avatarColor: '#F4C016', type: 'missed', callType: 'voice', duration: 'Missed', ts: Date.now() - 3600000 * 20 },
+  { id: 'c4', name: 'Telangana Youth Wing', avatarColor: '#203080', type: 'incoming', callType: 'video', duration: '45m 10s', ts: Date.now() - 3600000 * 26 },
+  { id: 'c5', name: 'Manoj Kumar', avatarColor: '#005020', type: 'outgoing', callType: 'video', duration: '8m 15s', ts: Date.now() - 3600000 * 48 },
+  { id: 'c6', name: 'Sridevi Yadav', avatarColor: '#F4C016', type: 'missed', callType: 'voice', duration: 'Missed', ts: Date.now() - 3600000 * 72 }
+];
+
+function renderCallLogs() {
+  const container = document.getElementById('call-logs-list');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  document.getElementById('call-logs-count').innerText = `${mockCallLogs.length} Logs`;
+  
+  mockCallLogs.forEach(log => {
+    const item = document.createElement('div');
+    item.className = 'call-log-item';
+    
+    const initials = getInitials(log.name);
+    
+    let statusIcon = '';
+    let statusColor = '';
+    let statusText = '';
+    
+    if (log.type === 'incoming') {
+      statusIcon = '<i class="fa-solid fa-phone-slash" style="transform: rotate(135deg); font-size: 10px;"></i>';
+      statusColor = '#2e7d32'; // Green
+      statusText = `Incoming ${log.callType === 'video' ? 'Video' : 'Voice'}`;
+    } else if (log.type === 'outgoing') {
+      statusIcon = '<i class="fa-solid fa-phone" style="transform: rotate(-45deg); font-size: 10px;"></i>';
+      statusColor = 'var(--color-blue)'; // Blue
+      statusText = `Outgoing ${log.callType === 'video' ? 'Video' : 'Voice'}`;
+    } else if (log.type === 'missed') {
+      statusIcon = '<i class="fa-solid fa-phone-slash" style="color: var(--color-red-live); font-size: 10px;"></i>';
+      statusColor = 'var(--color-red-live)'; // Red
+      statusText = 'Missed Call';
+    }
+    
+    const callTime = formatCallLogTime(log.ts);
+    
+    const voiceClick = `onclick="quickCallback('${log.name}', '${log.avatarColor}', 'voice')"`;
+    const videoClick = `onclick="quickCallback('${log.name}', '${log.avatarColor}', 'video')"`;
+    
+    item.innerHTML = `
+      <div class="call-log-avatar-wrap">
+        <div class="call-avatar-circle" style="background-color: ${log.avatarColor}; color: ${log.name === 'Telangana Youth Wing' || log.name === 'Srinivas Goud' || log.name === 'Sridevi Yadav' ? '#1A1500' : '#FFFFFF'}">${initials}</div>
+      </div>
+      <div class="call-log-details">
+        <span class="call-log-name">${log.name}</span>
+        <div class="call-log-status-row" style="color: ${statusColor}">
+          <span class="call-status-icon">${statusIcon}</span>
+          <span class="call-status-text">${statusText} • ${log.duration}</span>
+        </div>
+        <span class="call-log-time">${callTime}</span>
+      </div>
+      <div class="call-log-actions">
+        <button class="call-log-action-btn voice" ${voiceClick} title="Voice Call"><i class="fa-solid fa-phone"></i></button>
+        <button class="call-log-action-btn video" ${videoClick} title="Video Call"><i class="fa-solid fa-video"></i></button>
+      </div>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function formatCallLogTime(timestamp) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+  
+  const timeStr = formatTime(timestamp);
+  if (isToday) {
+    return `Today, ${timeStr}`;
+  } else if (isYesterday) {
+    return `Yesterday, ${timeStr}`;
+  } else {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${date.getDate()} ${months[date.getMonth()]}, ${timeStr}`;
+  }
+}
+
+function quickCallback(name, avatarColor, type) {
+  const targetUser = Array.from(usersMap.values()).find(u => u.name === name);
+  
+  if (type === 'video') {
+    const targetGroup = Array.from(groupsMap.values()).find(g => g.name === name);
+    if (targetGroup) {
+      activeGroupId = targetGroup.id;
+      initiateGroupVideoCall();
+    } else {
+      document.getElementById('video-call-group-name').innerText = `${name} Video Call`;
+      document.getElementById('group-video-call-screen').classList.remove('hidden');
+      
+      const localVideo = document.getElementById('local-video-feed');
+      const fallback = document.getElementById('local-video-fallback');
+      fallback.innerText = getInitials(name);
+      fallback.style.backgroundColor = avatarColor;
+      
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+        localStream = stream;
+        localVideo.srcObject = stream;
+        localVideo.classList.remove('hidden');
+        fallback.classList.add('hidden');
+      }).catch(err => {
+        localVideo.classList.add('hidden');
+        fallback.classList.remove('hidden');
+      });
+    }
+  } else {
+    if (targetUser) {
+      activeChatUserId = targetUser.id;
+      initiateAudioCall();
+    } else {
+      activeCall = {
+        peerId: 'mock_callback',
+        peerName: name,
+        role: 'caller',
+        seconds: 0
+      };
+      document.getElementById('outgoing-call-name').innerText = name;
+      const avatar = document.getElementById('outgoing-call-avatar');
+      avatar.innerText = getInitials(name);
+      avatar.style.backgroundColor = avatarColor;
+      document.getElementById('outgoing-call-screen').classList.remove('hidden');
+      socket.emit('call:invite', { to: 'mock_callback' });
+    }
   }
 }

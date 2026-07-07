@@ -2098,3 +2098,175 @@ button {
     grid-template-columns: repeat(3, 1fr) !important;
   }
 }
+
+/* ==========================================================================
+   CALL LOGS HISTORY VIEWS & LAYOUTS
+   ========================================================================== */
+
+.calls-container-box {
+  max-width: 600px;
+  margin: 30px auto;
+  width: 100%;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 60px);
+  overflow-y: auto;
+}
+
+.calls-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 12px;
+}
+
+.calls-list-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-green);
+}
+
+.call-log-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-light);
+  background-color: var(--color-input-bg);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.call-logs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.call-log-item {
+  display: flex;
+  align-items: center;
+  background-color: var(--color-white);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.call-log-item:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.call-log-avatar-wrap {
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+
+.call-avatar-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.call-log-details {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.call-log-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-text-dark);
+}
+
+.call-log-status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.call-status-icon {
+  display: flex;
+  align-items: center;
+}
+
+.call-log-time {
+  font-size: 11px;
+  color: var(--color-text-light);
+  margin-top: 2px;
+}
+
+.call-log-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+
+.call-log-action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: var(--transition);
+}
+
+.call-log-action-btn.voice {
+  background-color: var(--color-green-light);
+  color: var(--color-green);
+}
+
+.call-log-action-btn.voice:hover {
+  background-color: var(--color-green);
+  color: var(--color-white);
+  transform: scale(1.08);
+}
+
+.call-log-action-btn.video {
+  background-color: rgba(32, 48, 128, 0.08);
+  color: var(--color-blue);
+}
+
+.call-log-action-btn.video:hover {
+  background-color: var(--color-blue);
+  color: var(--color-white);
+  transform: scale(1.08);
+}
+
+@media (max-width: 400px) {
+  .call-log-item {
+    padding: 12px 10px;
+  }
+  .call-avatar-circle {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+  .call-log-name {
+    font-size: 14px;
+  }
+  .call-log-actions {
+    gap: 6px;
+  }
+  .call-log-action-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+}

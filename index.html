@@ -293,11 +293,13 @@
 
       <!-- CALLS TAB VIEW -->
       <section id="tab-calls" class="tab-view">
-        <div class="calls-history-view">
-          <div class="empty-state">
-            <i class="fa-solid fa-phone-volume"></i>
-            <h3>Direct Calling Platform</h3>
-            <p>Go to the <b>Chats</b> tab, click on any member, and press the <b>Call</b> button at the top to initiate a high-fidelity WebRTC call.</p>
+        <div class="calls-container-box">
+          <div class="calls-list-header">
+            <h3>Recent Call Logs</h3>
+            <span class="call-log-count" id="call-logs-count">0 Logs</span>
+          </div>
+          <div class="call-logs-list" id="call-logs-list">
+            <!-- Dynamically populated call history -->
           </div>
         </div>
       </section>
