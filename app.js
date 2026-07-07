@@ -166,6 +166,10 @@ async function onLoginSuccess() {
 
   // Switch to default tab
   switchTab(activeTab);
+
+  if (isMockMode) {
+    startMockGroupChatActivity();
+  }
 }
 
 function logout() {
@@ -1254,6 +1258,9 @@ function escapeHTML(str) {
 // STANDALONE DEMO (MOCK SYSTEM) IMPLEMENTATION
 // ==========================================================================
 
+let userMessageCounts = {};
+let mockGroupInterval = null;
+
 async function testBackendConnectionAndLogin() {
   try {
     const res = await fetch(`${BACKEND_URL}/api/seed`);
@@ -1273,7 +1280,7 @@ async function testBackendConnectionAndLogin() {
 function getSeededUsers() {
   return [
     { id: 'u1', name: 'K. Kavitha',        phone: '+919000000001', role: 'leader',     avatarColor: '#F4C016', title: 'Party President', online: true },
-    { id: 'u2', name: 'Harish Reddy',      phone: '+919000000002', role: 'karyakarta', avatarColor: '#005020', title: 'District Coordinator — Warangal', online: true },
+    { id: 'u2', name: 'K. T. Rama Rao',    phone: '+919000000002', role: 'karyakarta', avatarColor: '#005020', title: 'Party Working President', online: true },
     { id: 'u3', name: 'Padma Devi Rao',    phone: '+919000000003', role: 'karyakarta', avatarColor: '#203080', title: 'Women\'s Wing Convenor', online: true },
     { id: 'u4', name: 'Srinivas Goud',     phone: '+919000000004', role: 'karyakarta', avatarColor: '#F4C016', title: 'District Coordinator — Nizamabad', online: true },
     { id: 'u5', name: 'Manoj Kumar',       phone: '+919000000005', role: 'karyakarta', avatarColor: '#005020', title: 'Youth Wing Coordinator', online: true },
@@ -1304,10 +1311,10 @@ function getSeededRooms() {
   return [
     { id: 'r1', title: 'Public Meeting — Warangal 🔴', topic: 'Live public address to the party cadre and citizens.', hostId: 'u1', hostName: 'K. Kavitha', live: true, listeners: 3120, speakers: [
       { id: 'u1', name: 'K. Kavitha', role: 'leader', muted: false, speaking: true, avatarColor: '#F4C016' },
-      { id: 'u2', name: 'Harish Reddy', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
+      { id: 'u2', name: 'K. T. Rama Rao', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
     ], _target: 11420 },
-    { id: 'r2', title: 'Party Cadre Briefing', topic: 'Strategy briefing for coordinators ahead of the campaign.', hostId: 'u2', hostName: 'Harish Reddy', live: true, listeners: 1840, speakers: [
-      { id: 'u2', name: 'Harish Reddy', role: 'karyakarta', muted: false, speaking: true, avatarColor: '#005020' },
+    { id: 'r2', title: 'Party Cadre Briefing', topic: 'Strategy briefing for coordinators ahead of the campaign.', hostId: 'u2', hostName: 'K. T. Rama Rao', live: true, listeners: 1840, speakers: [
+      { id: 'u2', name: 'K. T. Rama Rao', role: 'karyakarta', muted: false, speaking: true, avatarColor: '#005020' },
       { id: 'u4', name: 'Srinivas Goud', role: 'karyakarta', muted: true, speaking: false, avatarColor: '#F4C016' },
       { id: 'u5', name: 'Manoj Kumar', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
     ], _target: 10250 },
@@ -1349,7 +1356,7 @@ function loadLocalMockData() {
 function initMockMessages() {
   mockDmMessages = {
     'u2': [
-      { from: 'u2', fromName: 'Harish Reddy', text: 'Jai Telangana! The Warangal public meeting plans are finalized.', ts: Date.now() - 3600000 * 2 },
+      { from: 'u2', fromName: 'K. T. Rama Rao', text: 'Jai Telangana! The Warangal public meeting plans are finalized.', ts: Date.now() - 3600000 * 2 },
       { from: 'u1', fromName: 'K. Kavitha', text: 'Excellent. Let\'s make sure the audio stage is ready.', ts: Date.now() - 3600000 }
     ],
     'u3': [
@@ -1367,26 +1374,102 @@ function initMockMessages() {
       { from: 'u1', fromName: 'K. Kavitha', text: 'All booth volunteers are requested to mobilize for the Warangal public meeting this weekend. Let\'s make it a grand success! 🚩', ts: Date.now() - 3600000 * 3 }
     ],
     'g1': [
-      { from: 'u2', fromName: 'Harish Reddy', text: 'We need to review the manifest draft by this Friday.', ts: Date.now() - 3600000 * 4 },
+      { from: 'u2', fromName: 'K. T. Rama Rao', text: 'We need to review the manifest draft by this Friday.', ts: Date.now() - 3600000 * 4 },
       { from: 'u4', fromName: 'Srinivas Goud', text: 'I agree. Let\'s schedule a virtual Sabha tomorrow at 5 PM.', ts: Date.now() - 3600000 * 3 }
     ]
   };
 }
 
 function getMockReply(userId, text) {
-  const user = usersMap.get(userId);
-  const lowerText = text.toLowerCase();
+  if (!userMessageCounts[userId]) {
+    userMessageCounts[userId] = 0;
+  }
   
-  if (lowerText.includes('hello') || lowerText.includes('hi') || lowerText.includes('namaste')) {
-    return `Namaste! How are you doing? How is the campaign progress?`;
+  const count = userMessageCounts[userId];
+  userMessageCounts[userId]++;
+
+  // Custom realistic sequences for main members (No AI feel)
+  if (userId === 'u2') { // KTR
+    if (count === 0) return `Jai Telangana, Kavitha Garu. All arrangements for the Warangal public meeting are in place.`;
+    if (count === 1) return `Yes, coordinating with the media and local leaders. We are expecting a massive turnout.`;
+    return `I will update the official channel once the rally starts. 🚩`;
   }
-  if (lowerText.includes('meeting') || lowerText.includes('sabha') || lowerText.includes('rally')) {
-    return `Yes, the arrangements are looking very strong. The public support is massive.`;
+  if (userId === 'u3') { // Padma Devi Rao
+    if (count === 0) return `Namaste Garu! Our Mahila volunteers are actively mobilizing in all districts.`;
+    if (count === 1) return `We are holding a booth-level coordinator meet tomorrow at 11 AM.`;
+    return `Will share the meeting minutes here. Jai Telangana!`;
   }
-  if (lowerText.includes('work') || lowerText.includes('done') || lowerText.includes('completed')) {
-    return `Excellent effort! Let's keep this momentum going. Jai Telangana! 🚩`;
+  if (userId === 'u7') { // Ravi Teja
+    if (count === 0) return `Namaste Kavitha Garu! I have mobilized 50 volunteers for the Nizamabad rally.`;
+    if (count === 1) return `Yes, we are distributing flags and posters in every village.`;
+    return `We will make the Sabha a huge success!`;
   }
-  return `Thank you for the update. Let's work together to make our voice stronger!`;
+
+  // General users sequence
+  if (count === 0) return `Namaste Kavitha Garu! Ready for the campaign work. Please let us know the directions.`;
+  if (count === 1) return `Sure, we will coordinate with our block coordinators.`;
+  return `Jai Telangana! 🚩`;
+}
+
+function startMockGroupChatActivity() {
+  if (mockGroupInterval) clearInterval(mockGroupInterval);
+  
+  const groupSimulations = {
+    'g1': [
+      { from: 'u4', fromName: 'Srinivas Goud', text: 'Let\'s finalize the route map for KTR Garu\'s roadshow.' },
+      { from: 'u3', fromName: 'Padma Devi Rao', text: 'Mahila wing will join from Nizamabad circle.' },
+      { from: 'u5', fromName: 'Manoj Kumar', text: 'Youth wing volunteers are handling the stage setup.' },
+      { from: 'u2', fromName: 'K. T. Rama Rao', text: 'Excellent. Please coordinate with the local police for security permissions.' }
+    ],
+    'g2': [
+      { from: 'u4', fromName: 'Srinivas Goud', text: 'Nizamabad reporting: 90% booths successfully seeded.' },
+      { from: 'u3', fromName: 'Padma Devi Rao', text: 'Warangal reports are uploaded to the portal.' },
+      { from: 'u5', fromName: 'Manoj Kumar', text: 'Youth mobilization reports are ready for review.' }
+    ],
+    'g3': [
+      { from: 'u5', fromName: 'Manoj Kumar', text: 'All youth wing members, please gather at party office tomorrow by 9 AM.' },
+      { from: 'u11', fromName: 'Praveen Chary', text: 'Sure Anna, coming with 20 volunteers from my ward.' },
+      { from: 'u12', fromName: 'Deepthi Reddy', text: 'Banners and flags are ready for distribution.' }
+    ]
+  };
+
+  mockGroupInterval = setInterval(() => {
+    if (!activeGroupId || !groupSimulations[activeGroupId]) return;
+    
+    const pool = groupSimulations[activeGroupId];
+    const item = pool[Math.floor(Math.random() * pool.length)];
+    
+    const msgObj = {
+      from: item.from,
+      fromName: item.fromName,
+      text: item.text,
+      ts: Date.now(),
+      chatId: activeGroupId
+    };
+    
+    if (!mockGroupMessages[activeGroupId]) mockGroupMessages[activeGroupId] = [];
+    
+    const len = mockGroupMessages[activeGroupId].length;
+    if (len > 0 && mockGroupMessages[activeGroupId][len - 1].text === msgObj.text) return;
+    
+    mockGroupMessages[activeGroupId].push(msgObj);
+    
+    if (activeTab === 'groups' && activeGroupId === msgObj.chatId) {
+      const box = document.getElementById('group-messages-box');
+      const emptyPlaceholder = box.querySelector('.system-message');
+      if (emptyPlaceholder) emptyPlaceholder.remove();
+      
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble incoming';
+      bubble.innerHTML = `
+        <span class="message-sender">${msgObj.fromName}</span>
+        <span class="message-text">${escapeHTML(msgObj.text)}</span>
+        <span class="message-meta">${formatTime(msgObj.ts)}</span>
+      `;
+      box.appendChild(bubble);
+      scrollToBottom(box);
+    }
+  }, 10000); // Trigger message every 10 seconds to feel live
 }
 
 function initMockSocketConnection() {
@@ -1408,6 +1491,7 @@ function initMockSocketConnection() {
       console.log('[mock-socket] disconnected');
       if (mockRoomInterval) clearInterval(mockRoomInterval);
       if (mockHandRaiseTimeout) clearTimeout(mockHandRaiseTimeout);
+      if (mockGroupInterval) clearInterval(mockGroupInterval);
     }
   };
   setTimeout(() => {
