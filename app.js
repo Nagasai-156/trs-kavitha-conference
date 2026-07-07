@@ -1286,6 +1286,118 @@ function cleanCallOverlayState() {
   activeCall = null;
 }
 
+let localStream = null;
+let isCameraOn = true;
+let isVideoMuted = false;
+
+async function initiateGroupVideoCall() {
+  if (!activeGroupId) return;
+  const group = groupsMap.get(activeGroupId);
+  if (!group) return;
+  
+  document.getElementById('video-call-group-name').innerText = `${group.name} Meeting`;
+  document.getElementById('group-video-call-screen').classList.remove('hidden');
+  
+  const localVideo = document.getElementById('local-video-feed');
+  const fallback = document.getElementById('local-video-fallback');
+  
+  fallback.innerText = getInitials(currentUser.name);
+  fallback.style.backgroundColor = currentUser.avatarColor;
+  
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localVideo.srcObject = localStream;
+    localVideo.classList.remove('hidden');
+    fallback.classList.add('hidden');
+    isCameraOn = true;
+    isVideoMuted = false;
+    
+    // Set control button states to active
+    document.getElementById('video-mute-toggle').className = 'mid-control-btn active';
+    document.getElementById('video-camera-toggle').className = 'mid-control-btn active';
+  } catch (err) {
+    console.warn("Camera or Microphone access failed, falling back to avatar:", err);
+    localVideo.classList.add('hidden');
+    fallback.classList.remove('hidden');
+    isCameraOn = false;
+    
+    document.getElementById('video-mute-toggle').className = 'mid-control-btn';
+    document.getElementById('video-camera-toggle').className = 'mid-control-btn';
+  }
+}
+
+function toggleVideoCallMute() {
+  if (localStream) {
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      isVideoMuted = !audioTrack.enabled;
+      
+      const btn = document.getElementById('video-mute-toggle');
+      if (isVideoMuted) {
+        btn.classList.remove('active');
+        btn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
+      } else {
+        btn.classList.add('active');
+        btn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+      }
+    }
+  }
+}
+
+function toggleVideoCamera() {
+  const localVideo = document.getElementById('local-video-feed');
+  const fallback = document.getElementById('local-video-fallback');
+  
+  if (localStream) {
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      isCameraOn = videoTrack.enabled;
+      
+      const btn = document.getElementById('video-camera-toggle');
+      if (isCameraOn) {
+        btn.classList.add('active');
+        btn.innerHTML = '<i class="fa-solid fa-video"></i>';
+        localVideo.classList.remove('hidden');
+        fallback.classList.add('hidden');
+      } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '<i class="fa-solid fa-video-slash"></i>';
+        localVideo.classList.add('hidden');
+        fallback.classList.remove('hidden');
+      }
+    }
+  } else {
+    // Toggle simulated state
+    isCameraOn = !isCameraOn;
+    const btn = document.getElementById('video-camera-toggle');
+    if (isCameraOn) {
+      btn.classList.add('active');
+      btn.innerHTML = '<i class="fa-solid fa-video"></i>';
+      localVideo.classList.remove('hidden');
+      fallback.classList.add('hidden');
+    } else {
+      btn.classList.remove('active');
+      btn.innerHTML = '<i class="fa-solid fa-video-slash"></i>';
+      localVideo.classList.add('hidden');
+      fallback.classList.remove('hidden');
+    }
+  }
+}
+
+function endGroupVideoCall() {
+  if (localStream) {
+    localStream.getTracks().forEach(track => track.stop());
+    localStream = null;
+  }
+  
+  const localVideo = document.getElementById('local-video-feed');
+  if (localVideo) localVideo.srcObject = null;
+  
+  document.getElementById('group-video-call-screen').classList.add('hidden');
+}
+
 // ==========================================================================
 // GENERAL PLATFORM UTILITIES
 // ==========================================================================

@@ -175,6 +175,9 @@
                   <h3 id="active-group-name"></h3>
                   <span id="active-group-desc"></span>
                 </div>
+                <div class="chat-header-actions" id="group-chat-actions">
+                  <button class="call-btn-action video-call-btn" onclick="initiateGroupVideoCall()"><i class="fa-solid fa-video"></i> Video Call</button>
+                </div>
               </div>
               <div class="chat-messages" id="group-messages-box">
                 <!-- Dynamically populated -->
@@ -412,6 +415,56 @@
       
       <div class="call-actions">
         <button class="call-action-btn hangup-btn" onclick="endCurrentCall()"><i class="fa-solid fa-phone-slash"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GROUP VIDEO CALL SCREEN -->
+  <div id="group-video-call-screen" class="call-overlay hidden">
+    <div class="video-call-container">
+      <div class="video-call-header">
+        <div class="video-call-meta">
+          <span class="live-tag">🔴 Live Video Conference</span>
+          <h2 id="video-call-group-name">Group Video Call</h2>
+        </div>
+      </div>
+      
+      <!-- Video Grid -->
+      <div class="video-grid" id="video-streams-grid">
+        <!-- Local User Video -->
+        <div class="video-card local-video-card">
+          <video id="local-video-feed" autoplay playsinline muted class="video-feed"></video>
+          <div class="video-avatar-fallback hidden" id="local-video-fallback">SR</div>
+          <span class="participant-label">You (Sneha Reddy)</span>
+        </div>
+        
+        <!-- Participant 1 -->
+        <div class="video-card">
+          <div class="video-avatar-fallback" style="background-color: #005020; color: #FFFFFF;">RK</div>
+          <span class="participant-label">Rakesh Kumar</span>
+          <div class="participant-status-badge"><i class="fa-solid fa-microphone"></i></div>
+        </div>
+        
+        <!-- Participant 2 -->
+        <div class="video-card">
+          <div class="video-avatar-fallback" style="background-color: #203080; color: #FFFFFF;">MK</div>
+          <span class="participant-label">Manoj Kumar</span>
+          <div class="participant-status-badge"><i class="fa-solid fa-microphone"></i></div>
+        </div>
+
+        <!-- Participant 3 -->
+        <div class="video-card">
+          <div class="video-avatar-fallback" style="background-color: #F4C016; color: #1A1500;">PD</div>
+          <span class="participant-label">Padma Devi Rao</span>
+          <div class="participant-status-badge"><i class="fa-solid fa-microphone-slash" style="color: var(--color-red-live)"></i></div>
+        </div>
+      </div>
+      
+      <!-- Controls -->
+      <div class="video-controls">
+        <button class="mid-control-btn active" id="video-mute-toggle" onclick="toggleVideoCallMute()"><i class="fa-solid fa-microphone"></i></button>
+        <button class="mid-control-btn active" id="video-camera-toggle" onclick="toggleVideoCamera()"><i class="fa-solid fa-video"></i></button>
+        <button class="call-action-btn hangup-btn" onclick="endGroupVideoCall()"><i class="fa-solid fa-phone-slash"></i></button>
       </div>
     </div>
   </div>
