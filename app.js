@@ -135,7 +135,7 @@ async function performLogin(bodyData) {
 }
 
 async function onLoginSuccess() {
-  document.getElementById('login-screen').classList.remove('active');
+  document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-container').classList.remove('hidden');
   
   // Show Leader privileges banner if role is leader
@@ -180,7 +180,7 @@ function logout() {
   token = null;
   
   document.getElementById('app-container').classList.add('hidden');
-  document.getElementById('login-screen').classList.add('active');
+  document.getElementById('login-screen').classList.remove('hidden');
 }
 
 // ==========================================================================
