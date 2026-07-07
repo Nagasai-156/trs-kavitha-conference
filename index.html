@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sabha — People's Conference Platform</title>
+  <!-- Outfit Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  <!-- Socket.IO Client -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+  <!-- ==================== LOGIN SCREEN ==================== -->
+  <div id="login-screen" class="screen active">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="logo-circle">
+          <i class="fa-solid fa-people-group"></i>
+        </div>
+        <h1>SABHA</h1>
+        <p>People's Conference Platform</p>
+      </div>
+
+      <div class="quick-login-section">
+        <h3>Quick Login (Demo Accounts)</h3>
+        <button class="quick-btn leader-theme" onclick="quickLogin('K. Kavitha', '+919000000001', 'leader')">
+          <div class="quick-btn-avatar" style="background-color: #F4C016; color: #1A1500;">KK</div>
+          <div class="quick-btn-info">
+            <span class="quick-name">K. Kavitha</span>
+            <span class="quick-role">Party President (Leader)</span>
+          </div>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+
+        <button class="quick-btn coordinator-theme" onclick="quickLogin('Harish Reddy', '+919000000002', 'karyakarta')">
+          <div class="quick-btn-avatar" style="background-color: #005020; color: #FFFFFF;">HR</div>
+          <div class="quick-btn-info">
+            <span class="quick-name">Harish Reddy</span>
+            <span class="quick-role">Warangal Coordinator</span>
+          </div>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+
+        <button class="quick-btn member-theme" onclick="quickLogin('Ravi Teja', '+919000000007', 'member')">
+          <div class="quick-btn-avatar" style="background-color: #203080; color: #FFFFFF;">RT</div>
+          <div class="quick-btn-info">
+            <span class="quick-name">Ravi Teja</span>
+            <span class="quick-role">Party Member</span>
+          </div>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+
+      <div class="divider"><span>OR ENTER DETAILS</span></div>
+
+      <form id="login-form" onsubmit="handleManualLogin(event)">
+        <div class="form-group">
+          <label for="login-name">Full Name</label>
+          <input type="text" id="login-name" placeholder="Enter your name" required>
+        </div>
+        <div class="form-group">
+          <label for="login-phone">Phone Number</label>
+          <input type="tel" id="login-phone" placeholder="+919000000000" required>
+        </div>
+        <div class="form-group">
+          <label for="login-role">Select Role</label>
+          <select id="login-role">
+            <option value="member">Party Member (Karyakarta/Volunteer)</option>
+            <option value="karyakarta">Coordinator</option>
+            <option value="leader">Party President (Leader)</option>
+          </select>
+        </div>
+        <button type="submit" class="submit-btn">Login to Sabha</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN PLATFORM APP ==================== -->
+  <div id="app-container" class="hidden">
+    
+    <!-- Top Bar Header -->
+    <header class="app-header">
+      <div class="header-top-strip"></div>
+      <div class="header-main">
+        <div class="header-branding">
+          <span class="logo-icon"><i class="fa-solid fa-people-group"></i></span>
+          <h2>SABHA</h2>
+        </div>
+        <div class="user-status-pill" id="current-user-pill">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+      <div id="leader-privilege-banner" class="leader-privilege-banner hidden">
+        <i class="fa-solid fa-shield-halved"></i> You have Leader Privileges: DM anyone, broadcast to official channels, and host rooms.
+      </div>
+    </header>
+
+    <!-- Main View Switcher Areas -->
+    <main class="app-content">
+      
+      <!-- CHATS TAB VIEW -->
+      <section id="tab-chats" class="tab-view active">
+        <div class="split-view">
+          <!-- Sidebar Contacts List -->
+          <div class="sidebar-list">
+            <div class="list-search">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" placeholder="Search members..." id="chat-search" oninput="filterChats()">
+            </div>
+            <div class="members-list" id="chats-users-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+          
+          <!-- Chat Detail Window -->
+          <div class="detail-chat-window empty" id="chat-detail-panel">
+            <div class="empty-state">
+              <i class="fa-regular fa-comments"></i>
+              <h3>Start a Conversation</h3>
+              <p>Select a party member from the list to start messaging in real-time.</p>
+            </div>
+            <div class="chat-container hidden" id="chat-active-container">
+              <div class="chat-header">
+                <div class="chat-header-avatar" id="active-chat-avatar"></div>
+                <div class="chat-header-info">
+                  <h3 id="active-chat-name"></h3>
+                  <span id="active-chat-status"></span>
+                </div>
+                <div class="chat-header-actions">
+                  <button class="call-btn-action" onclick="initiateAudioCall()"><i class="fa-solid fa-phone"></i> Call</button>
+                </div>
+              </div>
+              <div class="chat-messages" id="chat-messages-box">
+                <!-- Dynamically populated -->
+              </div>
+              <div class="chat-footer">
+                <input type="text" placeholder="Type a message..." id="chat-message-input" onkeypress="handleChatKeyPress(event)">
+                <button class="send-message-btn" onclick="sendDirectMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- GROUPS TAB VIEW -->
+      <section id="tab-groups" class="tab-view">
+        <div class="split-view">
+          <!-- Sidebar Groups List -->
+          <div class="sidebar-list">
+            <div class="members-list" id="groups-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+          
+          <!-- Group Chat Detail Window -->
+          <div class="detail-chat-window empty" id="group-detail-panel">
+            <div class="empty-state">
+              <i class="fa-solid fa-bullhorn"></i>
+              <h3>Official Groups & Channels</h3>
+              <p>Select an official channel or working group to view announcements and chat history.</p>
+            </div>
+            <div class="chat-container hidden" id="group-active-container">
+              <div class="chat-header">
+                <div class="chat-header-avatar" id="active-group-avatar"></div>
+                <div class="chat-header-info">
+                  <h3 id="active-group-name"></h3>
+                  <span id="active-group-desc"></span>
+                </div>
+              </div>
+              <div class="chat-messages" id="group-messages-box">
+                <!-- Dynamically populated -->
+              </div>
+              <div class="chat-footer" id="group-chat-footer">
+                <input type="text" placeholder="Type an announcement..." id="group-message-input" onkeypress="handleGroupKeyPress(event)">
+                <button class="send-message-btn" onclick="sendGroupMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+              </div>
+              <div class="broadcast-banner hidden" id="broadcast-locked-banner">
+                <i class="fa-solid fa-lock"></i> Only the Party President (K. Kavitha) can post updates to this official broadcast channel.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONFERENCE (SABHA) TAB VIEW -->
+      <section id="tab-conference" class="tab-view">
+        <div class="split-view conference-split">
+          <!-- Left side: List of Rooms -->
+          <div class="sidebar-list">
+            <div class="list-title">Live & Upcoming Sabhas</div>
+            <div class="rooms-list" id="rooms-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Right side: Immersive Sabha Screen -->
+          <div class="detail-chat-window empty" id="conference-detail-panel">
+            <div class="empty-state">
+              <i class="fa-solid fa-microphone-lines"></i>
+              <h3>Join a Live Sabha</h3>
+              <p>Select a live conference room from the left to enter the interactive audio stage with 10k+ concurrent listeners.</p>
+            </div>
+            
+            <!-- Live Immersive Room Screen -->
+            <div class="sabha-immersive-room hidden" id="sabha-active-room">
+              <!-- Immersive Header -->
+              <div class="room-top-bar">
+                <div class="room-meta">
+                  <span class="live-tag">🔴 LIVE</span>
+                  <h2 id="room-active-title">Party Cadre Briefing</h2>
+                  <p id="room-active-topic"></p>
+                </div>
+                <button class="leave-room-btn" onclick="leaveConferenceRoom()"><i class="fa-solid fa-right-from-bracket"></i> Leave Room</button>
+              </div>
+
+              <!-- Main Stage & Speakers Section -->
+              <div class="room-center">
+                <!-- Live Ticker & Info Panel -->
+                <div class="ticker-box">
+                  <div class="stat-pill yellow-pill">
+                    <i class="fa-solid fa-users"></i> <span id="room-listener-count">0</span> Listeners Active
+                  </div>
+                  <div class="stat-pill blue-pill">
+                    <i class="fa-solid fa-microphone"></i> Stage Speakers
+                  </div>
+                </div>
+
+                <!-- Speakers Grid -->
+                <div class="speakers-grid" id="room-speakers-grid">
+                  <!-- Populated dynamically -->
+                </div>
+              </div>
+
+              <!-- Raised Hands Drawer (Only for Host) -->
+              <div class="host-drawer hidden" id="host-hands-drawer">
+                <h3><i class="fa-solid fa-hand"></i> Hand Raises Requests</h3>
+                <div class="raised-hands-list" id="raised-hands-list">
+                  <!-- Dynamic items -->
+                </div>
+              </div>
+
+              <!-- Immersive Bottom Controls bar -->
+              <div class="room-bottom-controls">
+                <div class="reactions-bar">
+                  <button class="react-btn" onclick="sendReaction('👏')">👏</button>
+                  <button class="react-btn" onclick="sendReaction('❤️')">❤️</button>
+                  <button class="react-btn" onclick="sendReaction('🚩')">🚩</button>
+                  <button class="react-btn" onclick="sendReaction('🙌')">🙌</button>
+                  <button class="react-btn" onclick="sendReaction('🔥')">🔥</button>
+                </div>
+
+                <div class="audio-controls-panel">
+                  <!-- Mute button (only visible if speaker) -->
+                  <button id="speaker-mute-btn" class="control-btn hidden" onclick="toggleSpeakerMute()">
+                    <i class="fa-solid fa-microphone"></i> Mute
+                  </button>
+
+                  <!-- Raise hand button (only visible if listener) -->
+                  <button id="listener-raise-btn" class="control-btn raise-hand-action" onclick="raiseHandToSpeak()">
+                    <i class="fa-solid fa-hand"></i> Raise Hand
+                  </button>
+                </div>
+              </div>
+
+              <!-- Emote Float canvas overlay -->
+              <div class="floating-emojis-container" id="floating-emojis-container"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CALLS TAB VIEW -->
+      <section id="tab-calls" class="tab-view">
+        <div class="calls-history-view">
+          <div class="empty-state">
+            <i class="fa-solid fa-phone-volume"></i>
+            <h3>Direct Calling Platform</h3>
+            <p>Go to the <b>Chats</b> tab, click on any member, and press the <b>Call</b> button at the top to initiate a high-fidelity WebRTC call.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROFILE TAB VIEW -->
+      <section id="tab-profile" class="tab-view">
+        <div class="profile-container">
+          <div class="profile-header-card">
+            <div class="profile-avatar" id="my-profile-avatar"></div>
+            <h2 id="my-profile-name"></h2>
+            <span class="role-tag" id="my-profile-role"></span>
+            <p class="profile-phone" id="my-profile-phone"></p>
+          </div>
+
+          <div class="profile-details-list">
+            <div class="detail-item">
+              <span class="label">Designation:</span>
+              <span class="value" id="my-profile-title"></span>
+            </div>
+            <div class="detail-item">
+              <span class="label">Server Environment:</span>
+              <span class="value">Local Development (Socket.IO + REST)</span>
+            </div>
+            <div class="detail-item">
+              <span class="label">Client Version:</span>
+              <span class="value">1.0.0 (Web Demonstration)</span>
+            </div>
+          </div>
+
+          <button class="logout-btn" onclick="logout()"><i class="fa-solid fa-power-off"></i> Logout Account</button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="app-navigation">
+      <button class="nav-item active" onclick="switchTab('chats')">
+        <span class="nav-icon"><i class="fa-solid fa-message"></i></span>
+        <span class="nav-label">Chats</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('groups')">
+        <span class="nav-icon"><i class="fa-solid fa-bullhorn"></i></span>
+        <span class="nav-label">Groups</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('conference')">
+        <span class="nav-icon"><i class="fa-solid fa-microphone-lines"></i><span class="live-dot-nav"></span></span>
+        <span class="nav-label">Sabha</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('calls')">
+        <span class="nav-icon"><i class="fa-solid fa-phone"></i></span>
+        <span class="nav-label">Calls</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('profile')">
+        <span class="nav-icon"><i class="fa-solid fa-user"></i></span>
+        <span class="nav-label">Profile</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- ==================== CALL SCREEN OVERLAYS ==================== -->
+  
+  <!-- OUTGOING CALL SCREEN -->
+  <div id="outgoing-call-screen" class="call-overlay hidden">
+    <div class="call-card">
+      <div class="call-avatar pulsing" id="outgoing-call-avatar"></div>
+      <h2 id="outgoing-call-name">Contact Name</h2>
+      <p class="call-status">Dialing...</p>
+      
+      <div class="call-actions">
+        <button class="call-action-btn hangup-btn" onclick="endCurrentCall()"><i class="fa-solid fa-phone-slash"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INCOMING CALL SHEET (SLIDES UP FROM BOTTOM) -->
+  <div id="incoming-call-screen" class="call-overlay bottom-sheet hidden">
+    <div class="incoming-sheet-card">
+      <div class="incoming-info">
+        <div class="call-avatar small-avatar" id="incoming-call-avatar"></div>
+        <div class="incoming-text">
+          <span class="incoming-label">Incoming Audio Call</span>
+          <h3 id="incoming-call-name">Harish Reddy</h3>
+          <span class="incoming-sub">Sabha Voice Call</span>
+        </div>
+      </div>
+      <div class="incoming-actions">
+        <button class="incoming-action-btn reject-btn" onclick="rejectIncomingCall()"><i class="fa-solid fa-phone-slash"></i> Decline</button>
+        <button class="incoming-action-btn accept-btn" onclick="acceptIncomingCall()"><i class="fa-solid fa-phone"></i> Accept</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIVE CALL SCREEN -->
+  <div id="active-call-screen" class="call-overlay hidden">
+    <div class="call-card">
+      <div class="call-avatar talking" id="active-call-avatar"></div>
+      <h2 id="active-call-name">Contact Name</h2>
+      <p class="call-status" id="active-call-timer">Connected (00:00)</p>
+
+      <div class="audio-wave-visualization">
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
+
+      <div class="call-mid-controls">
+        <button class="mid-control-btn" id="call-mute-toggle" onclick="toggleCallMute()"><i class="fa-solid fa-microphone-slash"></i></button>
+        <button class="mid-control-btn active" id="call-speaker-toggle" onclick="toggleCallSpeaker()"><i class="fa-solid fa-volume-high"></i></button>
+      </div>
+      
+      <div class="call-actions">
+        <button class="call-action-btn hangup-btn" onclick="endCurrentCall()"><i class="fa-solid fa-phone-slash"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main JavaScript File -->
+  <script src="app.js"></script>
+</body>
+</html>
