@@ -204,11 +204,11 @@ async function fetchSeedData() {
 function initSocketConnection() {
   if (isMockMode) {
     initMockSocketConnection();
-    return;
+  } else {
+    socket = io(BACKEND_URL, {
+      auth: { token: token }
+    });
   }
-  socket = io(BACKEND_URL, {
-    auth: { token: token }
-  });
 
   socket.on('connect', () => {
     console.log('Connected to Socket.IO backend, socketId:', socket.id);
