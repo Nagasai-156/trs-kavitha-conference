@@ -1049,7 +1049,7 @@ button {
 
 /* Immersive Room Panel */
 .sabha-immersive-room {
-  background: linear-gradient(180deg, var(--color-green) 0%, #00220c 100%);
+  background: #0f121a; /* Professional dark theme instead of bright green gradient */
   color: var(--color-white);
   width: 100%;
   height: 100%;
@@ -1061,8 +1061,8 @@ button {
 
 .room-top-bar {
   padding: 20px;
-  background-color: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background-color: #161a24;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1091,36 +1091,39 @@ button {
 
 .room-meta p {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .leave-room-btn {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.08);
   color: var(--color-white);
   padding: 8px 16px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
   transition: var(--transition);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .leave-room-btn:hover {
   background-color: var(--color-red-live);
+  border-color: var(--color-red-live);
 }
 
 .room-center {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 24px;
   overflow-y: auto;
   z-index: 5;
+  gap: 20px;
 }
 
 .ticker-box {
   display: flex;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   justify-content: center;
 }
 
@@ -1146,11 +1149,17 @@ button {
 
 .speakers-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 24px;
   max-width: 600px;
   margin: 0 auto;
   justify-items: center;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
 }
 
 .speaker-card {
@@ -1160,6 +1169,7 @@ button {
   text-align: center;
   position: relative;
   width: 100%;
+  transition: var(--transition);
 }
 
 .speaker-avatar-wrap {
@@ -1185,7 +1195,7 @@ button {
 /* Pulsing highlight for currently speaking speaker */
 .speaker-card.speaking .speaker-avatar {
   border-color: var(--color-yellow);
-  box-shadow: 0 0 16px var(--color-yellow);
+  box-shadow: 0 0 16px rgba(244, 192, 22, 0.6);
   animation: speakingPulse 1.2s infinite;
 }
 
@@ -1208,19 +1218,140 @@ button {
   align-items: center;
   justify-content: center;
   font-size: 9px;
-  border: 2px solid var(--color-green);
+  border: 2px solid #0f121a;
 }
 
 .speaker-name {
   font-weight: 600;
   font-size: 13px;
   color: var(--color-white);
+  margin-top: 4px;
 }
 
 .speaker-role {
   font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+}
+
+/* Speaking Waveform Animation */
+.speaking-waveform {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+  margin-top: 6px;
+}
+
+.speaking-waveform .bar {
+  width: 2px;
+  height: 3px;
+  background-color: var(--color-yellow);
+  border-radius: 1px;
+  animation: bounceWave 0.6s infinite ease-in-out alternate;
+}
+
+.speaking-waveform .bar:nth-child(2) {
+  animation-delay: 0.15s;
+  animation-duration: 0.5s;
+}
+
+.speaking-waveform .bar:nth-child(3) {
+  animation-delay: 0.3s;
+  animation-duration: 0.7s;
+}
+
+@keyframes bounceWave {
+  from { height: 3px; }
+  to { height: 10px; }
+}
+
+/* Audience Section Grid */
+.audience-section {
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+}
+
+.audience-section-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-yellow);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.audience-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  justify-items: center;
+}
+
+.audience-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.audience-card:hover {
+  transform: translateY(-2px);
+}
+
+.audience-avatar-wrap {
+  position: relative;
+}
+
+.audience-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-white);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+.audience-name {
+  font-size: 11px;
   color: rgba(255, 255, 255, 0.6);
   font-weight: 500;
+  max-width: 64px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audience-status-icon {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 16px;
+  height: 16px;
+  background-color: var(--color-blue);
+  color: var(--color-white);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  border: 1.5px solid #0f121a;
 }
 
 /* Host Drawer (for approvals) */

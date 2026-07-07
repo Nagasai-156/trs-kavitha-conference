@@ -316,6 +316,7 @@ function initSocketConnection() {
       roomsMap.set(room.id, room);
       document.getElementById('room-listener-count').innerText = room.listeners.toLocaleString();
       renderRoomSpeakers(room.speakers);
+      renderRoomAudience(room.speakers);
     }
   });
 
@@ -325,6 +326,7 @@ function initSocketConnection() {
       room.speakers = speakers;
       if (activeRoomId === roomId) {
         renderRoomSpeakers(speakers);
+        renderRoomAudience(speakers);
         updateUserSpeakerControls(speakers);
       }
     }
@@ -892,6 +894,10 @@ function joinConferenceRoom(roomId) {
     raiseBtn.classList.remove('hidden');
   }
   
+  // Immediately render speakers and audience
+  renderRoomSpeakers(room.speakers);
+  renderRoomAudience(room.speakers);
+  
   // Join room in Socket
   socket.emit('room:join', { roomId });
 }
@@ -919,6 +925,15 @@ function renderRoomSpeakers(speakers) {
     const initials = getInitials(sp.name);
     const muteIcon = sp.muted ? '<div class="mute-indicator-badge"><i class="fa-solid fa-microphone-slash"></i></div>' : '';
     
+    // Waveform animated bars if speaking
+    const waveformHtml = sp.speaking ? `
+      <div class="speaking-waveform">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+      </div>
+    ` : '';
+    
     card.innerHTML = `
       <div class="speaker-avatar-wrap">
         <div class="speaker-avatar" style="background-color: ${sp.avatarColor}; color: ${sp.role === 'leader' ? '#1A1500' : '#FFFFFF'}">${initials}</div>
@@ -926,8 +941,66 @@ function renderRoomSpeakers(speakers) {
       </div>
       <span class="speaker-name">${sp.name}</span>
       <span class="speaker-role">${sp.role === 'leader' ? 'Host (Leader)' : 'Speaker'}</span>
+      ${waveformHtml}
     `;
     container.appendChild(card);
+  });
+}
+
+function renderRoomAudience(speakers) {
+  const container = document.getElementById('room-audience-grid');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  const speakerIds = new Set(speakers.map(s => s.id));
+  
+  // Get all registered users who are not speakers
+  const audience = Array.from(usersMap.values())
+    .filter(u => !speakerIds.has(u.id) && u.id !== currentUser.id);
+    
+  // If the current user is not a speaker, they are part of the audience visually
+  const isSpeaker = speakers.some(s => s.id === currentUser.id);
+  if (!isSpeaker) {
+    audience.unshift(currentUser);
+  }
+  
+  // Simulated extra audience members to make the grid feel full and realistic
+  const extraAudience = [
+    { name: 'K. T. Rama Rao', role: 'member', avatarColor: '#005020', title: 'Working President' },
+    { name: 'T. Harish Rao', role: 'member', avatarColor: '#203080', title: 'MLA Siddipet' },
+    { name: 'K. Kavitha', role: 'member', avatarColor: '#F4C016', title: 'Leader' },
+    { name: 'B. Vinod Kumar', role: 'member', avatarColor: '#005020', title: 'Core Member' },
+    { name: 'Palla Rajeshwar', role: 'member', avatarColor: '#203080', title: 'MLA Jangaon' },
+    { name: 'K. Naveen Kumar', role: 'member', avatarColor: '#F4C016', title: 'MLA Alair' },
+    { name: 'V. Srinivas Goud', role: 'member', avatarColor: '#005020', title: 'Ex Minister Mahabubnagar' },
+    { name: 'G. Balaraju', role: 'member', avatarColor: '#203080', title: 'Booth Coordinator' },
+    { name: 'S. Deepthi', role: 'member', avatarColor: '#F4C016', title: 'Women Incharge' },
+    { name: 'V. Naresh Yadav', role: 'member', avatarColor: '#005020', title: 'Youth Leader' }
+  ];
+  
+  const fullAudience = [...audience, ...extraAudience];
+  
+  const room = roomsMap.get(activeRoomId);
+  const totalListenersCount = room ? room.listeners + fullAudience.length : 3120;
+  document.getElementById('room-audience-count').innerText = totalListenersCount.toLocaleString();
+  
+  fullAudience.forEach(member => {
+    const item = document.createElement('div');
+    item.className = 'audience-card';
+    const initials = getInitials(member.name);
+    
+    // Add handraised status icon for some simulated users to feel realistic
+    const hash = member.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const isHandRaised = hash % 7 === 0 ? '<div class="audience-status-icon"><i class="fa-solid fa-hand"></i></div>' : '';
+    
+    item.innerHTML = `
+      <div class="audience-avatar-wrap">
+        <div class="audience-avatar" style="background-color: ${member.avatarColor || '#203080'}">${initials}</div>
+        ${isHandRaised}
+      </div>
+      <span class="audience-name">${member.name.split(' ')[0]}</span>
+    `;
+    container.appendChild(item);
   });
 }
 
@@ -1298,10 +1371,10 @@ function getSeededUsers() {
 
 function getSeededGroups() {
   return [
-    { id: 'g1', name: 'State Committee', description: 'Core state-level committee coordination.', avatarColor: '#F4C016', isBroadcast: false, members: ['u1', 'u2', 'u3', 'u4', 'u5'], memberCount: 25 },
-    { id: 'g2', name: 'District Coordinators', description: 'All district coordinators — planning & reports.', avatarColor: '#005020', isBroadcast: false, members: ['u1', 'u2', 'u4', 'u5', 'u13'], memberCount: 33 },
-    { id: 'g3', name: 'Youth Wing', description: 'Youth cadre mobilization and campaigns.', avatarColor: '#203080', isBroadcast: false, members: ['u1', 'u5', 'u7', 'u11', 'u12', 'u14'], memberCount: 1240 },
-    { id: 'g4', name: 'Women\'s Wing (Mahila)', description: 'Mahila cadre — welfare drives and outreach.', avatarColor: '#F4C016', isBroadcast: false, members: ['u1', 'u3', 'u8', 'u10', 'u14'], memberCount: 980 },
+    { id: 'g1', name: 'Telangana Youth Wing', description: 'Youth cadre mobilization and campaigns across state.', avatarColor: '#203080', isBroadcast: false, members: ['u1', 'u5', 'u7', 'u11', 'u12', 'u14'], memberCount: 1240 },
+    { id: 'g2', name: 'Sangareddy Municipal Wing', description: 'Local municipal planning and public outreach in Sangareddy.', avatarColor: '#F4C016', isBroadcast: false, members: ['u1', 'u2', 'u4', 'u5', 'u13'], memberCount: 145 },
+    { id: 'g3', name: 'Warangal Women Youth Wing', description: 'Women wing leadership, outreach, and local drives in Warangal.', avatarColor: '#005020', isBroadcast: false, members: ['u1', 'u3', 'u8', 'u10', 'u14'], memberCount: 980 },
+    { id: 'g4', name: 'Rangareddy Students Team', description: 'Student wing activities, college networks, and youth issues.', avatarColor: '#203080', isBroadcast: false, members: ['u1', 'u5', 'u7', 'u11', 'u12'], memberCount: 540 },
     { id: 'g5', name: 'Booth Volunteers', description: 'Ground-level booth management team.', avatarColor: '#005020', isBroadcast: false, members: ['u2', 'u6', 'u7', 'u9', 'u13'], memberCount: 4600 },
     { id: 'g6', name: 'Official Announcements 📢', description: 'Official party broadcasts. Only the leadership can post here.', avatarColor: '#203080', isBroadcast: true, members: ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8', 'u9', 'u10', 'u11', 'u12', 'u13', 'u14'], memberCount: 48200 }
   ];
@@ -1309,19 +1382,19 @@ function getSeededGroups() {
 
 function getSeededRooms() {
   return [
-    { id: 'r1', title: 'Public Meeting — Warangal 🔴', topic: 'Live public address to the party cadre and citizens.', hostId: 'u1', hostName: 'Sneha Reddy', live: true, listeners: 3120, speakers: [
-      { id: 'u1', name: 'Sneha Reddy', role: 'leader', muted: false, speaking: true, avatarColor: '#F4C016' },
-      { id: 'u2', name: 'Rakesh Kumar', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
-    ], _target: 11420 },
-    { id: 'r2', title: 'Party Cadre Briefing', topic: 'Strategy briefing for coordinators ahead of the campaign.', hostId: 'u2', hostName: 'Rakesh Kumar', live: true, listeners: 1840, speakers: [
+    { id: 'r1', title: 'Sangareddy Municipal Wing Meet 🔴', topic: 'Municipal development plan and ward coordination meeting.', hostId: 'u2', hostName: 'Rakesh Kumar', live: true, listeners: 3120, speakers: [
       { id: 'u2', name: 'Rakesh Kumar', role: 'karyakarta', muted: false, speaking: true, avatarColor: '#005020' },
-      { id: 'u4', name: 'Srinivas Goud', role: 'karyakarta', muted: true, speaking: false, avatarColor: '#F4C016' },
-      { id: 'u5', name: 'Manoj Kumar', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
+      { id: 'u1', name: 'Sneha Reddy', role: 'leader', muted: false, speaking: false, avatarColor: '#F4C016' }
+    ], _target: 11420 },
+    { id: 'r2', title: 'Warangal Women Youth Wing Assembly', topic: 'Empowerment rally coordination and booth enrollment.', hostId: 'u3', hostName: 'Padma Devi Rao', live: true, listeners: 1840, speakers: [
+      { id: 'u3', name: 'Padma Devi Rao', role: 'karyakarta', muted: false, speaking: true, avatarColor: '#203080' },
+      { id: 'u1', name: 'Sneha Reddy', role: 'leader', muted: false, speaking: false, avatarColor: '#F4C016' },
+      { id: 'u4', name: 'Srinivas Goud', role: 'karyakarta', muted: true, speaking: false, avatarColor: '#F4C016' }
     ], _target: 10250 },
-    { id: 'r3', title: 'Policy Discussion: Farmers', topic: 'Roundtable on farmer welfare and irrigation policy.', hostId: 'u4', hostName: 'Srinivas Goud', live: false, listeners: 0, speakers: [
-      { id: 'u4', name: 'Srinivas Goud', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#F4C016' }
+    { id: 'r3', title: 'Telangana Youth Wing Briefing', topic: 'Virtual briefing for district coordinators by Youth convenor.', hostId: 'u5', hostName: 'Manoj Kumar', live: false, listeners: 0, speakers: [
+      { id: 'u5', name: 'Manoj Kumar', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
     ], _target: 0 },
-    { id: 'r4', title: 'Youth Townhall', topic: 'Open townhall with the youth wing.', hostId: 'u5', hostName: 'Manoj Kumar', live: false, listeners: 0, speakers: [
+    { id: 'r4', title: 'Rangareddy Students Team Discussion', topic: 'Student scholarship advocacy and campus volunteer drive.', hostId: 'u5', hostName: 'Manoj Kumar', live: false, listeners: 0, speakers: [
       { id: 'u5', name: 'Manoj Kumar', role: 'karyakarta', muted: false, speaking: false, avatarColor: '#005020' }
     ], _target: 0 }
   ];
@@ -1356,11 +1429,11 @@ function loadLocalMockData() {
 function initMockMessages() {
   mockDmMessages = {
     'u2': [
-      { from: 'u2', fromName: 'Rakesh Kumar', text: 'Greetings! The Warangal public meeting plans are finalized.', ts: Date.now() - 3600000 * 2 },
+      { from: 'u2', fromName: 'Rakesh Kumar', text: 'Greetings! The Sangareddy municipal meeting agenda is finalized.', ts: Date.now() - 3600000 * 2 },
       { from: 'u1', fromName: 'Sneha Reddy', text: 'Excellent. Let\'s make sure the audio stage is ready.', ts: Date.now() - 3600000 }
     ],
     'u3': [
-      { from: 'u3', fromName: 'Padma Devi Rao', text: 'Mahila wing is conducting a welfare drive tomorrow.', ts: Date.now() - 3600000 * 5 },
+      { from: 'u3', fromName: 'Padma Devi Rao', text: 'Warangal Women Youth Wing is conducting a welfare drive tomorrow.', ts: Date.now() - 3600000 * 5 },
       { from: 'u1', fromName: 'Sneha Reddy', text: 'Good work, keep it up.', ts: Date.now() - 3600000 * 4 }
     ],
     'u7': [
@@ -1371,10 +1444,10 @@ function initMockMessages() {
   mockGroupMessages = {
     'g6': [
       { from: 'u1', fromName: 'Sneha Reddy', text: 'Welcome to the official Sabha broadcast channel! Keep checking here for official party updates.', ts: Date.now() - 3600000 * 12 },
-      { from: 'u1', fromName: 'Sneha Reddy', text: 'All booth volunteers are requested to mobilize for the Warangal public meeting this weekend. Let\'s make it a grand success! 🚩', ts: Date.now() - 3600000 * 3 }
+      { from: 'u1', fromName: 'Sneha Reddy', text: 'All booth volunteers are requested to mobilize for the Sangareddy municipal meeting this weekend. Let\'s make it a grand success! 🚩', ts: Date.now() - 3600000 * 3 }
     ],
     'g1': [
-      { from: 'u2', fromName: 'Rakesh Kumar', text: 'We need to review the manifest draft by this Friday.', ts: Date.now() - 3600000 * 4 },
+      { from: 'u2', fromName: 'Rakesh Kumar', text: 'We need to review the youth manifesto draft by this Friday.', ts: Date.now() - 3600000 * 4 },
       { from: 'u4', fromName: 'Srinivas Goud', text: 'I agree. Let\'s schedule a virtual Sabha tomorrow at 5 PM.', ts: Date.now() - 3600000 * 3 }
     ]
   };
@@ -1390,18 +1463,18 @@ function getMockReply(userId, text) {
 
   // Custom realistic sequences for main members (No AI feel)
   if (userId === 'u2') { // Rakesh Kumar
-    if (count === 0) return `Greetings, Sneha Garu. All arrangements for the Warangal public meeting are in place.`;
-    if (count === 1) return `Yes, coordinating with the media and local leaders. We are expecting a massive turnout.`;
-    return `I will update the official channel once the rally starts. 🚩`;
+    if (count === 0) return `Greetings, Sneha Garu. All arrangements for the Sangareddy municipal meeting are in place.`;
+    if (count === 1) return `Yes, coordinating with the ward coordinators and municipal team. We are expecting a good turnout.`;
+    return `I will update the Sangareddy Municipal Wing channel with the resolutions. 🚩`;
   }
   if (userId === 'u3') { // Padma Devi Rao
-    if (count === 0) return `Namaste Garu! Our Mahila volunteers are actively mobilizing in all districts.`;
-    if (count === 1) return `We are holding a booth-level coordinator meet tomorrow at 11 AM.`;
-    return `Will share the meeting minutes here. Greetings!`;
+    if (count === 0) return `Namaste Garu! Our Warangal Women Youth Wing volunteers are actively mobilizing local women.`;
+    if (count === 1) return `We are holding a ward-level enrollment drive tomorrow at 10 AM.`;
+    return `Will share the updates in the Warangal Women Youth Wing channel. Greetings!`;
   }
   if (userId === 'u7') { // Ravi Teja
-    if (count === 0) return `Namaste Sneha Garu! I have mobilized 50 volunteers for the Nizamabad rally.`;
-    if (count === 1) return `Yes, we are distributing flags and posters in every village.`;
+    if (count === 0) return `Namaste Sneha Garu! I have mobilized 50 volunteers for the Sangareddy municipal rally.`;
+    if (count === 1) return `Yes, we are distributing leaflets and flags in all wards.`;
     return `We will make the Sabha a huge success!`;
   }
 
@@ -1417,12 +1490,12 @@ function startMockGroupChatActivity() {
   const groupSimulations = {
     'g1': [
       { from: 'u4', fromName: 'Srinivas Goud', text: 'Let\'s finalize the route map for Rakesh Garu\'s roadshow.' },
-      { from: 'u3', fromName: 'Padma Devi Rao', text: 'Mahila wing will join from Nizamabad circle.' },
+      { from: 'u3', fromName: 'Padma Devi Rao', text: 'Warangal Women Youth Wing will join from Nizamabad circle.' },
       { from: 'u5', fromName: 'Manoj Kumar', text: 'Youth wing volunteers are handling the stage setup.' },
       { from: 'u2', fromName: 'Rakesh Kumar', text: 'Excellent. Please coordinate with the local police for security permissions.' }
     ],
     'g2': [
-      { from: 'u4', fromName: 'Srinivas Goud', text: 'Nizamabad reporting: 90% booths successfully seeded.' },
+      { from: 'u4', fromName: 'Srinivas Goud', text: 'Sangareddy reporting: 90% wards successfully covered.' },
       { from: 'u3', fromName: 'Padma Devi Rao', text: 'Warangal reports are uploaded to the portal.' },
       { from: 'u5', fromName: 'Manoj Kumar', text: 'Youth mobilization reports are ready for review.' }
     ],
@@ -1583,6 +1656,7 @@ function handleMockSocketEmit(event, data) {
           };
           room.speakers.push(mySpeakerState);
           renderRoomSpeakers(room.speakers);
+          renderRoomAudience(room.speakers);
           updateUserSpeakerControls(room.speakers);
           
           alert("Host promoted you to speaker. Your mic is now active.");
@@ -1613,6 +1687,7 @@ function handleMockSocketEmit(event, data) {
           avatarColor: user.avatarColor
         });
         renderRoomSpeakers(room.speakers);
+        renderRoomAudience(room.speakers);
       }
     }
   }
