@@ -550,6 +550,14 @@ button {
     height: 100%;
     z-index: 500;
   }
+  
+  .detail-chat-window.empty {
+    display: none !important;
+  }
+}
+
+.detail-chat-window:not(.empty) .empty-state {
+  display: none !important;
 }
 
 .mobile-back-btn {
